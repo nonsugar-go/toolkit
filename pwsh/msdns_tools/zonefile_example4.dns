@@ -1,0 +1,49 @@
+; https://docs.oracle.com/ja-jp/iaas/Content/DNS/Reference/formattingzonefile.htm
+$ORIGIN example.com.
+$TTL    7200 ; default TTL
+@                    3600 SOA   ns1.p30.oraclecloud.net.  zone-admin.dyndns.com. ( 2016072701                 3600                       600                        604800                     1800                     ) 
+    86400 NS    ns1.p68.dns.oraclecloud.net.
+    86400 NS    ns2.p68.dns.oraclecloud.net.
+    86400 NS    ns3.p68.dns.oraclecloud.net.
+    86400 NS    ns4.p68.dns.oraclecloud.net.
+    3600 MX    10 mail.example.com.
+    3600 MX    20 vpn.example.com.
+    3600 MX    30 mail.example.com.
+    60 A     204.13.248.106
+    3600 TXT   "v=spf1 includespf.oraclecloud.net ~all"
+
+mail                  14400 A     204.13.248.106
+                      14400 TXT   "v=spf1 includespf.oraclecloud.net ~all"
+
+vpn                      60 A     216.146.45.240
+webapp                   60 A     216.146.46.10
+webapp                   60 A     216.146.46.11
+
+mailserver        IN  A              192.168.1.25
+mailserver2           A              192.168.1.26
+mailserver3  3600 IN  A              192.168.1.27
+
+; CNAME は複数書けない
+www                   43200 CNAME example.com.
+                    43200   CNAME web
+                    43200   CNAME web2.example.com.
+
+mail2   3600    mx 10 mail
+        3600    MX 20 vpn.example.com.
+                mx 30 webapp.example.com.
+mail2           mx 30 mailserver3
+
+in  3600  IN NS           ns1.in
+    3600  in ns           ns2.in
+;
+ns1.in.example.com.  3600 A 192.168.1.53
+ns2.in               3600 A 192.168.1.54
+
+5   1800    PTR    sv1.in
+    1800 IN ptr    sv2.in.example.com.
+    1800    PTR    sv3.foo.com.
+
+
+_sip._tcp.example.com. 3600 IN SRV 10 60 5060 sipserver1.example.com.
+        3600 IN srv 20 50       5060 sipserver2
+        3600 IN SRV 30 40       5060 sipserver3.example.com.

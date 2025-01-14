@@ -8,6 +8,8 @@ New-Item -Path $dir -ItemType Directory | Out-Null
 foreach ($ZoneName in $ZoneName) {
     Write-Output "Exporting zone: $ZoneName"
     $ZoneFile = Join-Path -Path $dir -ChildPath "zonefile_$ZoneName.dns"
+    $line = "`$ORIGIN ${ZoneName}."
+    Add-Content -Path $ZoneFile -Value $line -Encoding UTF8
     $RRS = Get-DnsServerResourceRecord -ZoneName $ZoneName
     $RRS | ForEach-Object {
         $HostName = $_.HostName

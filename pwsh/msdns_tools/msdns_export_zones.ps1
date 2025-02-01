@@ -1,75 +1,35 @@
-$ZoneName = @((Get-DnsServerZone |
-        Where-Object { $_.ZoneType -eq "Primary" -and $_.ZoneName -ne "TrustAnchors" } |
-        Select-Object ZoneName).ZoneName)
+$ZoneNames = @((Get-DnsServerZone |
+        Where-Object {
+            $_.IsAutoCreated -eq $false -and @("Primary", "Secondary") -contains $_.ZoneType -and $_.ZoneName -ne "TrustAnchors"
+        } | Select-Object ZoneName).ZoneName)
 
-$dir = "$env:USERPROFILE\Desktop\dnsinfo_$(Get-Date -Format 'yyyyMMdd-HHmm')"
+$datetime = Get-Date -Format 'yyyyMMdd-HHmm'
+$dir = Join-Path -Path (Join-Path -Path $env:SystemRoot -ChildPath "System32\dns") `
+    -ChildPath $datetime
 New-Item -Path $dir -ItemType Directory | Out-Null
+$dnsinfodir = Join-Path -Path $env:USERPROFILE -ChildPath "Desktop\dnsinfo"
+if (-not (Test-Path -Path $dnsinfodir)) {
+    New-Item -Path $dnsinfodir -ItemType Directory | Out-Null
+}
+$destdir = Join-Path -Path $dnsinfodir -ChildPath $datetime
 
-foreach ($ZoneName in $ZoneName) {
-    Write-Output "Exporting zone: $ZoneName"
-    $ZoneFile = Join-Path -Path $dir -ChildPath "zonefile_$ZoneName.dns"
-    $line = "`$ORIGIN ${ZoneName}."
-    Add-Content -Path $ZoneFile -Value $line -Encoding UTF8
-    $RRS = Get-DnsServerResourceRecord -ZoneName $ZoneName
-    $RRS | ForEach-Object {
-        $HostName = $_.HostName
-        $TimeToLive = $_.TimeToLive.TotalSeconds
-        $RecordClass = $_.RecordClass
-        $RecordType = $_.RecordType
-        $RecordData = $_.RecordData
-        switch ($RecordType) {
-            "A" {
-                $RD = $RecordData.IPv4Address.IPAddressToString
-            }
-            "AAAA" {
-                $RD = $RecordData.IPv6Address.IPAddressToString
-            }
-            "CNAME" {
-                $RD = $RecordData.HostNameAlias
-            }
-            "NS" {
-                $RD = $RecordData.NameServer
-            }
-            "MX" {
-                $RD = "$($RecordData.Preference) $($RecordData.MailExchange)"
-            }
-            "PTR" {
-                $RD = $RecordData.PtrDomainName
-            }
-            "SOA" {
-                $PrimaryServer = $RecordData.PrimaryServer
-                $ResponsiblePerson = $RecordData.ResponsiblePerson
-                $SerialNumber = $RecordData.SerialNumber
-                $RefreshInterval = $RecordData.RefreshInterval.TotalSeconds
-                $RetryDelay = $RecordData.RetryDelay.TotalSeconds
-                $ExpireLimit = $RecordData.ExpireLimit.TotalSeconds
-                $MinimumTimeToLive = $RecordData.MinimumTimeToLive.TotalSeconds
-
-                $RD = "$PrimaryServer $ResponsiblePerson ( $SerialNumber $RefreshInterval $RetryDelay $ExpireLimit $MinimumTimeToLive )"
-            }
-            "SRV" {
-                $RD = "$($RecordData.Priority) $($RecordData.Weight) $($RecordData.Port) $($RecordData.DomainName)"
-            }
-            "TXT" {
-                $RD = "`"$($RecordData.DescriptiveText)`""
-            }
-            default {
-                Write-Warning "Unknown RecordType: $RecordType"
-                $RD = $RecordData
-            }
-        }   
-
-        $line = "$HostName`t$TimeToLive`t$RecordClass`t$RecordType`t$RD"
-        Add-Content -Path $ZoneFile -Value $line -Encoding UTF8
-    }
+foreach ($ZoneName in $ZoneNames) {
+    $ZoneFile = Join-Path -Path $datetime -ChildPath "$($ZoneName).dns"
+    Write-Output "Exporting $ZoneName to $ZoneFile"
+    Export-DnsServerZone -Name $ZoneName -FileName $ZoneFile
 }
 
-$csvFile = Join-Path -Path $dir -ChildPath "zones.csv"
+Write-Output "Exported zone files to $dnsinfodir\$datetime"
+Move-Item -Path $dir -Destination $dnsinfodir
+
+$csvFile = Join-Path -Path $destdir -ChildPath "zones.csv"
+Write-Output "Output the list of zones to $csvFile"
 Get-DnsServerZone |
 Select-Object ZoneName, ZoneType, ZoneFile, Notify, IsAutoCreated, IsDsIntegrated, IsReverseLookupZone, IsSigned |
 Export-Csv -Path $csvFile -NoTypeInformation -Encoding UTF8
 
-$csvFile = Join-Path -Path $dir -ChildPath "forwarder.csv"
+$csvFile = Join-Path -Path $destdir -ChildPath "forwarders.csv"
+Write-Output "Output the list of forwarders to $csvFile"
 Get-DnsServerForwarder |
 Select-Object IPAddress, ReorderedIPAddress, EnableReordering, Timeout, UseRootHint |
 Export-Csv -Path $csvFile -NoTypeInformation -Encoding UTF8
